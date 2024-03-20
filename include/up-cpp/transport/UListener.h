@@ -31,21 +31,22 @@
 #include <up-core-api/uattributes.pb.h>
 #include <up-cpp/transport/datamodel/UMessage.h>
 #include <up-cpp/transport/datamodel/UPayload.h>
+#include <functional>
 
 namespace uprotocol::utransport {
+	typedef std::function<uprotocol::v1::UStatus (uprotocol::utransport::UMessage&)> UListener;
+	// class UListener {
 
-	class UListener {
+	// 	public:
+	// 		/**
+	// 		* Method called to handle/process events.
+	// 		* @param message Topic the underlying source of the message.
+	// 		* @return Returns an Ack every time a message is received and processed.
+	// 		*/
+	// 		virtual uprotocol::v1::UStatus onReceive(uprotocol::utransport::UMessage &message) const = 0; 
 
-		public:
-			/**
-			* Method called to handle/process events.
-			* @param message Topic the underlying source of the message.
-			* @return Returns an Ack every time a message is received and processed.
-			*/
-			virtual uprotocol::v1::UStatus onReceive(uprotocol::utransport::UMessage &message) const = 0; 
-
-			virtual ~UListener() {} 
-	};
+	// 		virtual ~UListener() {} 
+	// };
 }
 
 
