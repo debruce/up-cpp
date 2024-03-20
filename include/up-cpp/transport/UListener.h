@@ -34,7 +34,7 @@
 #include <functional>
 
 namespace uprotocol::utransport {
-	typedef std::function<uprotocol::v1::UStatus (uprotocol::utransport::UMessage&)> UListener;
+	typedef std::function<uprotocol::v1::UStatus (const uprotocol::utransport::UMessage&)> UListener;
 	// class UListener {
 
 	// 	public:
