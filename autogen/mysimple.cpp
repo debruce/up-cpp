@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
         anymapFormat(cout, am);
     }
 
-    if (1) {
+    if (0) {
         auto ptr = new myprotocol::Outer();
         ptr->set_a(100);
         // // ptr->set_b(200);
@@ -26,19 +26,26 @@ int main(int argc, char *argv[])
         anymapFormat(cout, am);
     }
 
-    // if constexpr (0) {
-    //     auto ptr = new myprotocol::Outer();
-    //     AnyMap merge = {
-    //         { "a", 100 },
-    //         // { "b", 200 },
-    //         { "c", 300 },
-    //         { "x", 400 },
-    //         { "y", 500 },
-    //         { "z", 600 }
-    //     };
+    if (1) {
+        auto ptr = new myprotocol::Outer();
+        AnyMap merge = {
+            { "a", 100 },
+            { "b", 200 },
+            { "c", "hello" },
+            { "x", AnyMap{
+                { "innerAX", "innerAX" },
+                { "innerAY", "innerAY" }
+            } },
+            { "y", AnyMap{
+                { "innerBX", "innerBX" },
+                { "innerBY", "innerBY" }
+            } },
+            { "z", 1234 }
+        };
 
-    //     auto passing = anymap2protobuf(merge, *ptr);
-    //     cout << "passing = " << passing << endl;
-    //     cout << ptr->DebugString() << endl;
-    // }
+        cout << "before anymap2protobuf" << endl;
+        auto passing = anymap2protobuf(merge, *ptr);
+        cout << "passing = " << passing << endl;
+        cout << ptr->DebugString() << endl;
+    }
 }
