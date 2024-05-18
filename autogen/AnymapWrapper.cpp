@@ -102,7 +102,7 @@ string as_string(const any& a)
     return string("[[ ") + a.type().name() + " ]]";
 }
 
-AnyMap protobuf2anymap(const gpb::Message& m)
+AnyMap protobuf2anymap(const gpb::Message& m, bool get_options)
 {
     AnyMap ret;
     auto desc       = m.GetDescriptor();
@@ -112,66 +112,61 @@ AnyMap protobuf2anymap(const gpb::Message& m)
         const auto field = desc->field(i);
         if (auto oneof_desc = field->containing_oneof()) {
             if (oneof_set.count((void*)oneof_desc) == 0) {
-                for (auto x = 0; x < oneof_desc->field_count(); x++) {
-                    auto cf = oneof_desc->field(x);
-                    if (refl->HasField(m, cf)) {
-                        auto value = anyFromField(refl, cf, m);
-                        ret.emplace(cf->name(), value);
+                if (get_options) {
+                    OneofMap om;
+                    for (auto x = 0; x < oneof_desc->field_count(); x++) {
+                        auto cf = oneof_desc->field(x);
+                        if (cf->type() == gpb::FieldDescriptor::TYPE_MESSAGE) {
+                            om.emplace(cf->name(), cf->message_type()->name());
+                        }
+                        else if (cf->type() == gpb::FieldDescriptor::TYPE_ENUM) {
+                            om.emplace(cf->name(), cf->enum_type()->name());
+                        }
+                        else {
+                            om.emplace(cf->name(), cf->cpp_type_name());
+                        }
                     }
+                    ret.emplace(oneof_desc->name(), om);
+                    oneof_set.insert((void*)oneof_desc); // save oneof handle so repeated fields can be ignored
                 }
-                oneof_set.insert((void*)oneof_desc); // save oneof handle so repeated fields can be ignored
+                else {
+                    for (auto x = 0; x < oneof_desc->field_count(); x++) {
+                        auto cf = oneof_desc->field(x);
+                        if (refl->HasField(m, cf)) {
+                            auto value = anyFromField(refl, cf, m);
+                            ret.emplace(cf->name(), value);
+                        }
+                    }
+                    oneof_set.insert((void*)oneof_desc); // save oneof handle so repeated fields can be ignored
+                }
             }
         }
-        else if (field->type() == gpb::FieldDescriptor::TYPE_MESSAGE) {
-            auto& submsg = refl->GetMessage(m, field);
-            ret.emplace(field->name(), protobuf2anymap(submsg));
+        else if (field->type() == gpb::FieldDescriptor::TYPE_MESSAGE) { 
+            auto& submsg = refl->GetMessage(m, field); // for nested messages, option case and value case are to just recurse
+            ret.emplace(field->name(), protobuf2anymap(submsg, get_options));
         }
         else if (field->type() == gpb::FieldDescriptor::TYPE_ENUM) {
-            const auto& subenum = refl->GetEnum(m, field);
-            ret.emplace(field->name(), make_pair(int(subenum->number()), subenum->name()));
-        }
-        else {
-            ret.emplace(field->name(), anyFromField(refl, field, m));
-        }
-    }
-    return ret;
-}
-
-AnyMap protobuf2anymapOptions(const gpb::Message& m)
-{
-    AnyMap ret;
-    auto desc       = m.GetDescriptor();
-    auto refl       = m.GetReflection();
-    set<void*> oneof_set;
-    for(auto i = 0 ; i < desc->field_count(); i++) {
-        const auto field = desc->field(i);
-        if (auto oneof_desc = field->containing_oneof()) {
-            if (oneof_set.count((void*)oneof_desc) == 0) { // if this not the first field of the oneof, ignore it
-                OneofMap om;
-                for (auto x = 0; x < oneof_desc->field_count(); x++) {
-                    auto cf = oneof_desc->field(x);
-                    om.emplace(cf->name(), cf->cpp_type_name());
+            if (get_options) { // options is a map of enum key,int pairs
+                auto enum_desc = field->enum_type();
+                EnumMap m;
+                for (int x = 0; x < enum_desc->value_count(); x++) {
+                    auto v = enum_desc->value(x);
+                    m.emplace(v->number(), v->name());
                 }
-                ret.emplace(oneof_desc->name(), om);
-                oneof_set.insert((void*)oneof_desc); // save oneof handle so repeated fields can be ignored
+                ret.emplace(field->name(), m);
             }
-        }
-        else if (field->type() == gpb::FieldDescriptor::TYPE_MESSAGE) {
-            auto& submsg = refl->GetMessage(m, field);
-            ret.emplace(field->name(), protobuf2anymapOptions(submsg));
-        }
-        else if (field->type() == gpb::FieldDescriptor::TYPE_ENUM) {
-            auto enum_desc = field->enum_type();
-            EnumMap m;
-            for (int x = 0; x < enum_desc->value_count(); x++) {
-                auto v = enum_desc->value(x);
-                m.emplace(v->number(), v->name());
+            else { // non-option case returns a pair including the int and string names
+                const auto& enum_value = refl->GetEnum(m, field);
+                ret.emplace(field->name(), make_pair(int(enum_value->number()), enum_value->name()));
             }
-            ret.emplace(field->name(), m);
         }
         else {
-            // ret.emplace(field->name(), anyFromField(refl, field, m));
-            ret.emplace(field->name(), field->cpp_type_name());
+            if (get_options) { // if its a scalar field, option is just the C++ type name
+                ret.emplace(field->name(), field->cpp_type_name());
+            }
+            else {  // get the C++ value
+                ret.emplace(field->name(), anyFromField(refl, field, m));
+            }
         }
     }
     return ret;
@@ -185,7 +180,6 @@ bool anymap2protobuf(const AnyMap& am, gpb::Message& msg)
         for (const auto& [amk, amv] : am) {
             auto field = desc->FindFieldByName(amk);
             if (field == nullptr) return false;
-            // cout << "assigning " << amk << " as " << field->cpp_type_name() << endl;
             switch (field->cpp_type()) {
                 case gpb::FieldDescriptor::CPPTYPE_BOOL: {
                     refl->SetBool(&msg, field, any_cast<bool>(amv));

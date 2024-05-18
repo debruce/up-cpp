@@ -36,6 +36,12 @@ message InnerB {
 	string innerBY = 2;
 };
 
+enum InnerEnum {
+	X = 0;
+	Y = 1;
+	Z = 2;
+};
+
 message Outer {
 	fixed64 a = 1;
 	optional fixed64 b = 2;
@@ -44,6 +50,7 @@ message Outer {
 			InnerA x = 14;
 			InnerB y = 15;
 			fixed64 z = 16;
+			InnerEnum e = 17;
 	};
 	fixed64 d = 4;
 };

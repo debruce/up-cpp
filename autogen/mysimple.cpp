@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 {
     if (0) {
         auto ptr = new myprotocol::Outer();
-        auto am = protobuf2anymapOptions(*ptr);
+        auto am = protobuf2anymap(*ptr, false);
         anymapFormat(cout, am);
     }
 
@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
         AnyMap merge = {
             { "a", 100 },
             { "b", 200 },
-            { "c", "hello" },
+            // { "c", "hello" },
             { "x", AnyMap{
                 { "innerAX", "innerAX" },
                 { "innerAY", "innerAY" }
