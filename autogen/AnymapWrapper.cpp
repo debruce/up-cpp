@@ -1,7 +1,14 @@
 #include "AnymapWrapper.h"
+#include <boost/core/demangle.hpp>
 
 using namespace std;
 namespace gpb = google::protobuf;
+
+template <typename T>
+string get_type(const T& t)
+{
+    return boost::core::demangle(typeid(t).name());
+}
 
 string stringFromAny(const any& v)
 {
@@ -36,6 +43,53 @@ any anyFromField(const gpb::Reflection* refl, const gpb::FieldDescriptor* field,
         }
         default:
             return nullptr;
+    }
+}
+
+void anyToField(
+    gpb::FieldDescriptor::CppType cpp_type,
+    const gpb::Reflection* refl,
+    const gpb::FieldDescriptor* field,
+    const any& a,
+    gpb::Message& msg)
+{
+    using FD = gpb::FieldDescriptor;
+    switch (cpp_type) {
+        case FD::CPPTYPE_BOOL: {
+            refl->SetBool(&msg, field, any_cast<bool>(a));
+            return;
+        }
+        case FD::CPPTYPE_DOUBLE: {
+            refl->SetDouble(&msg, field, any_cast<double>(a));
+            return;
+        }
+        case FD::CPPTYPE_FLOAT: {
+            refl->SetFloat(&msg, field, any_cast<double>(a));
+            return;
+        }
+        case FD::CPPTYPE_INT32: {
+            refl->SetInt32(&msg, field, any_cast<int>(a));
+            return;
+        }
+        case FD::CPPTYPE_INT64: {
+            refl->SetInt64(&msg, field, any_cast<int>(a));
+            return;
+        }
+        case FD::CPPTYPE_STRING: {
+            refl->SetString(&msg, field, stringFromAny(a));
+            return;
+        }
+        case FD::CPPTYPE_UINT32: {
+            refl->SetUInt32(&msg, field, any_cast<int>(a));
+            return;
+        }
+        case FD::CPPTYPE_UINT64: {
+            refl->SetUInt64(&msg, field, any_cast<int>(a));
+            return;
+        }
+        case FD::CPPTYPE_ENUM:
+        case FD::CPPTYPE_MESSAGE:
+            return;
     }
 }
 
@@ -180,62 +234,28 @@ bool anymap2protobuf(const AnyMap& am, gpb::Message& msg)
         for (const auto& [amk, amv] : am) {
             auto field = desc->FindFieldByName(amk);
             if (field == nullptr) return false;
-            switch (field->cpp_type()) {
-                case gpb::FieldDescriptor::CPPTYPE_BOOL: {
-                    refl->SetBool(&msg, field, any_cast<bool>(amv));
-                    break;
-                }
-                case gpb::FieldDescriptor::CPPTYPE_DOUBLE: {
-                    refl->SetDouble(&msg, field, any_cast<double>(amv));
-                    break;
-                }
-                case gpb::FieldDescriptor::CPPTYPE_FLOAT: {
-                    refl->SetFloat(&msg, field, any_cast<float>(amv));
-                    break;
-                }
-                case gpb::FieldDescriptor::CPPTYPE_INT32: {
-                    refl->SetInt32(&msg, field, any_cast<int32_t>(amv));
-                    break;
-                }
-                case gpb::FieldDescriptor::CPPTYPE_UINT32: {
-                    if (amv.type() == typeid(int)) refl->SetUInt32(&msg, field, any_cast<int>(amv));
-                    else refl->SetUInt32(&msg, field, any_cast<uint32_t>(amv));
-                    break;
-                }
-                case gpb::FieldDescriptor::CPPTYPE_INT64: {
-                    refl->SetInt64(&msg, field, any_cast<int64_t>(amv));
-                    break;
-                }
-                case gpb::FieldDescriptor::CPPTYPE_UINT64: {
-                    if (amv.type() == typeid(int)) refl->SetUInt64(&msg, field, any_cast<int>(amv));
-                    else refl->SetUInt64(&msg, field, any_cast<uint64_t>(amv));
-                    break;
-                }
-                case gpb::FieldDescriptor::CPPTYPE_STRING: {
-                    refl->SetString(&msg, field, stringFromAny(amv));
-                    break;
-                }
-                case gpb::FieldDescriptor::CPPTYPE_ENUM: {
-                    if (amv.type() == typeid(string) || amv.type() == typeid(char const*)) {
-                        auto v = stringFromAny(amv);
-                        auto ptr = field->enum_type()->FindValueByName(v);
-                        if (ptr == nullptr) {
-                            stringstream ss;
-                            ss << "Cannot lookup enum name=" << v << " for field=" << field->name() << endl;
-                            throw logic_error(ss.str());
-                        }
-                        refl->SetEnumValue(&msg, field, ptr->number());
+
+            if (field->cpp_type() == gpb::FieldDescriptor::CPPTYPE_ENUM) {
+                if (amv.type() == typeid(string) || amv.type() == typeid(char const*)) {
+                    auto v = stringFromAny(amv);
+                    auto ptr = field->enum_type()->FindValueByName(v);
+                    if (ptr == nullptr) {
+                        stringstream ss;
+                        ss << "Cannot lookup enum name=" << v << " for field=" << field->name() << endl;
+                        throw logic_error(ss.str());
                     }
-                    else {
-                        refl->SetEnumValue(&msg, field, any_cast<int>(amv));
-                    }
-                    break;
+                    refl->SetEnumValue(&msg, field, ptr->number());
                 }
-                case gpb::FieldDescriptor::CPPTYPE_MESSAGE: {
-                    auto submsg = refl->MutableMessage(&msg, field);
-                    anymap2protobuf(any_cast<AnyMap>(amv), *submsg);
-                    break;               
+                else {
+                    refl->SetEnumValue(&msg, field, any_cast<int>(amv));
                 }
+            }
+            else if (field->cpp_type() == gpb::FieldDescriptor::CPPTYPE_MESSAGE) {
+                auto submsg = refl->MutableMessage(&msg, field);
+                anymap2protobuf(any_cast<AnyMap>(amv), *submsg);
+            }
+            else {
+                anyToField(field->cpp_type(), refl, field, amv, msg);
             }
         }
     }

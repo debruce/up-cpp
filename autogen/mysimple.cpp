@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
         AnyMap merge = {
             { "a", 100 },
             { "b", 200 },
+            { "c", 300 },
             // { "c", "hello" },
             { "x", AnyMap{
                 { "innerAX", "innerAX" },
@@ -40,7 +41,7 @@ int main(int argc, char *argv[])
                 { "innerBX", "innerBX" },
                 { "innerBY", "innerBY" }
             } },
-            { "z", 1234 }
+            // { "z", 1234 }
         };
 
         cout << "before anymap2protobuf" << endl;
