@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
         };
 
         cout << "before anymap2protobuf" << endl;
-        auto passing = anymap2protobuf(merge, *ptr);
-        cout << "passing = " << passing << endl;
+        auto ret = Anymap2Protobuf(merge, *ptr);
+        cout << "passing = " << ret.is_valid() << endl;
         cout << ptr->DebugString() << endl;
     }
 }

@@ -226,9 +226,11 @@ AnyMap protobuf2anymap(const gpb::Message& m, bool get_options)
     return ret;
 }
 
-bool anymap2protobuf(const AnyMap& am, gpb::Message& msg)
-{
-    try {
+struct Anymap2Protobuf::Impl {
+    bool passing;
+
+    bool process(const AnyMap& am, gpb::Message& msg)
+    {
         auto desc       = msg.GetDescriptor();
         auto refl       = msg.GetReflection();
         for (const auto& [amk, amv] : am) {
@@ -252,18 +254,40 @@ bool anymap2protobuf(const AnyMap& am, gpb::Message& msg)
             }
             else if (field->cpp_type() == gpb::FieldDescriptor::CPPTYPE_MESSAGE) {
                 auto submsg = refl->MutableMessage(&msg, field);
-                anymap2protobuf(any_cast<AnyMap>(amv), *submsg);
+                auto ret = process(any_cast<AnyMap>(amv), *submsg);
+                if (ret == false) return false;
             }
             else {
                 anyToField(field->cpp_type(), refl, field, amv, msg);
             }
         }
+        return true;
     }
-    catch (const std::exception& ex) {
-        cerr << "Caught " << ex.what() << endl;
-        return false;
+
+    Impl(const AnyMap& am, gpb::Message& msg)
+    {
+        try {
+            passing = process(am, msg);
+        }
+        catch (...) {
+            passing = false;
+        }
     }
-    return true;
+
+    bool is_valid()
+    {
+        return passing;
+    }
+};
+
+Anymap2Protobuf::Anymap2Protobuf(const AnyMap& am, gpb::Message& msg)
+    : pImpl(make_shared<Impl>(am, msg))
+{
+}
+
+bool Anymap2Protobuf::is_valid()
+{
+    return pImpl->is_valid();
 }
 
 string padX(const string& pad, size_t x)
